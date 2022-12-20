@@ -1,0 +1,96 @@
+---
+title: "Employee Clustering and Attrition prediction"
+author: "XYZ"
+date: '2022-11-15'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loding libraries
+
+```{r libraries, echo=FALSE}
+suppressMessages(library(readr))
+suppressMessages(library(dplyr))
+suppressMessages(library(tidyr))
+suppressMessages(library(ggplot2))
+suppressMessages(library(plotly))
+suppressMessages(library(lubridate))
+suppressMessages(library(inventorize))
+suppressMessages(library(forecast))
+suppressMessages(library(hts))
+suppressMessages(library(ROCR))
+suppressMessages(library(caret))
+suppressMessages(library(vcd))
+suppressMessages(library(cluster))
+suppressMessages(library(Rtsne))
+suppressMessages(library(gridExtra))
+suppressMessages(library(caTools))
+suppressMessages(library(MASS))
+```
+
+
+```{r read df}
+df <- read.csv("Employee_dataset.csv", header = TRUE, stringsAsFactors = F)
+
+```
+
+
+
+```{r Data preprocessing, echo= FALSE}
+
+df<- subset(df, df$Attrition == "No")
+
+df[,c(3,4,6,9,12,16,18,23)]=lapply(df[,c(3,4,6,9,12,16,18,23)],as.factor)
+
+df$Over18[df$Over18=="Y"]=1
+df$Over18=as.numeric(df$Over18)
+
+df2 = subset(df, select = c(2,4,6,11,14,15,16,17,18,19,23,29,32,33,35))
+
+```
+
+#### **Multipe Linear Regression**
+
+```{r Spltting of Dataset, echo=TRUE}
+
+set.seed(101)
+
+split<- sample.split(df2$YearsAtCompany,SplitRatio = 0.7)
+training_data <- subset(df2, split == "TRUE")
+testing_data <- subset(df2, split == "FALSE")
+
+```
+
+
+```{r Model1, echo=TRUE}
+
+model1 <-lm(YearsAtCompany~ Age + BusinessTravel + Department + EnvironmentSatisfaction + JobInvolvement + JobLevel + JobRole + JobSatisfaction + MaritalStatus + MonthlyIncome + OverTime+ TotalWorkingYears + YearsInCurrentRole + YearsWithCurrManager, 
+           data = training_data)
+
+summary(model1)
+
+```
+
+
+```{r Model2, echo=FALSE}
+
+model2 <-lm(YearsAtCompany~ Age + BusinessTravel+ JobInvolvement + JobRole +
+            + TotalWorkingYears + YearsInCurrentRole + YearsWithCurrManager, data = training_data)
+
+summary(model2)
+
+```
+
+
+```{r Prediction, echo=FALSE}
+
+prediction <- predict(model2, testing_data)
+head(prediction)
+head(testing_data$YearsAtCompany)
+
+```
+
+

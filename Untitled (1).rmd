@@ -1,0 +1,127 @@
+---
+title: "Employee Clustering and Attrition prediction"
+author: "XYZ"
+date: '2022-11-15'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loding libraries
+
+```{r libraries, echo=FALSE}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(plotly)
+library(lubridate)
+library(inventorize)
+library(forecast) 
+library(correlationfunnel)
+library(cluster)
+library(hts)
+library(ROCR)
+library(caret)
+library(vcd)
+library(cluster)
+library(Rtsne)
+library(gridExtra)
+```
+
+
+```{r read df}
+hr_data_tbl <- read.csv("Employee_dataset.csv", header = TRUE, stringsAsFactors = TRUE)
+
+View(hr_data_tbl)
+
+```
+
+
+
+```{r Data preprocessing, echo= FALSE}
+hr_corr_tbl <- hr_data_tbl %>%
+    select(-EmployeeID) %>%
+    binarize(n_bins = 5, thresh_infreq = 0.01, name_infreq = "OTHER", one_hot = TRUE) %>%
+    correlate(Attrition__Yes)
+
+hr_corr_tbl %>%
+    plot_correlation_funnel() %>%
+    ggplotly()
+
+```
+
+#### **Clustering**
+
+
+```{r Splitting the dataset into “training” and “testing”, echo=FALSE}
+df2 = subset(hr_data_tbl, select = c(2,3,4,6,11,14,15,16,17,18,19,23,29,32,33,35))
+
+
+set.seed(42)
+
+train <- sample_frac(df2, 0.7)
+
+gowerd <- daisy(train, metric = "gower")
+
+```
+
+```{r clustering, echo=TRUE}
+#determine the optimal number of clusters for the data
+clusterfit <- pam(gowerd, diss = T, k = 3)
+
+```
+
+
+```{r cluster summary, echo=FALSE}
+clusters <- train %>% 
+            mutate(cluster = clusterfit$clustering) %>% 
+            group_by(cluster) %>% 
+            do(allclusters = summary(.))
+
+clusters$allclusters
+```
+
+
+```{r tsne, , echo=TRUE}
+
+tsne <- Rtsne(gowerd, is_distance = T)
+
+tsned <- tsne$Y %>%
+        data.frame() %>%
+        setNames(c("X", "Y")) %>%
+        mutate(cluster = factor(clusterfit$clustering), id = row.names(train))
+
+ggplot(aes(x = X, y = Y), data = tsned) + 
+        geom_point(aes(color = cluster))
+
+```
+#### **Accuracy with 0.25 cutoff is bit higher than Accuracy with 0.225**
+
+```{r Accuracy, , echo=TRUE}
+
+
+train$id <- row.names(train)
+
+subcluster3_1 = tsned %>%
+                filter(X > -65 & X < -45, Y > -5 & Y < 13) %>%
+                left_join(train, by = "id")
+
+g1 <- ggplot(subcluster3_1, 
+             aes(x = df2$Attrition, y = df2$JobSatisfaction, 
+                 color = hr_data_tbl$MonthlyIncome)) + geom_jitter() + 
+             ggtitle("Medium salary/Low satisfaction")
+
+subcluster3_2 = tsned %>%
+                filter(Y < -13, Y > -40, X > 30 ) %>%
+                left_join(train, by = "id") 
+
+g2 <- ggplot(subcluster3_2, 
+             aes(x = df2$Attrition, y = df2$JobSatisfaction,
+                 color = hr_data_tbl$MonthlyIncome)) + geom_jitter() + 
+             ggtitle("Low salary/Low satisfaction")
+
+grid.arrange(g1, g2)
+```
